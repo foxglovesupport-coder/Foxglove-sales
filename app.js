@@ -23,6 +23,7 @@ const sections = [
   "futureSection",
   "accountSection",
   "auditSection",
+  "myReportSection",
 ];
 
 const menuItems = [
@@ -35,6 +36,7 @@ const menuItems = [
   { id: "builder", label: "Form Builder", roles: managerRoles },
   { id: "assign", label: "Form Assignment", roles: managerRoles },
   { id: "forms", label: "My Forms", roles: ["superadmin", "admin", "user"] },
+  { id: "myReport", label: "My Reports & ROI", roles: ["user"] },
   { id: "reports", label: "Reports", roles: managerRoles },
   { id: "roi", label: "Product & ROI", roles: managerRoles },
   { id: "submissions", label: "Submissions", roles: managerRoles },
@@ -479,6 +481,12 @@ async function navigate(page) {
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.page === page);
   });
+
+  if (page === "myReport") {
+    $("myReportSection").classList.remove("hidden");
+    await mySalesLoad();
+    return;
+  }
 
   if (page === "roi") {
     $("roiSection").classList.remove("hidden");
@@ -2954,12 +2962,13 @@ function p6SubPopulate(id, rows, defaultText, textFn) {
 }
 function p6RenderSubmissions() {
   const form = $("p6SubForm").value, user = $("p6SubUser").value;
-  const filtered = p6SubAll.filter(x => (!form || x.form_id === form) && (!user || x.submitted_by === user));
+  const entryId = $("p6SubId").value.trim().toLowerCase();
+  const filtered = p6SubAll.filter(x => entryId ? x.id.toLowerCase() === entryId : ((!form || x.form_id === form) && (!user || x.submitted_by === user)));
   const visible = foxPageSlice("submissions", filtered);
   const body = $("p6SubmissionsBody");
   body.replaceChildren();
   $("p6SubCount").textContent = `${filtered.length} matching submissions`;
-  if (!filtered.length) p6EmptyRow(body, 4, "No submissions match these filters.");
+  if (!filtered.length) p6EmptyRow(body, 6, "No submissions match these filters.");
   for (const sub of visible) {
     const tr = document.createElement("tr"),
       formRow = p6SubForms.find(f => f.id === sub.form_id),
@@ -2974,7 +2983,11 @@ function p6RenderSubmissions() {
     pre.textContent = Object.entries(sub.answers || {}).map(([id, val]) =>
       `${p6SubFields.find(f => f.id === id)?.label || id}: ${typeof val === "boolean" ? (val ? "Yes" : "No") : (val ?? "—")}`
     ).join("\n");
-    details.append(summary, pre); td.appendChild(details); tr.appendChild(td); body.appendChild(tr);
+    details.append(summary, pre); td.appendChild(details); tr.appendChild(td);
+    const idCell = document.createElement("td"); idCell.textContent = sub.id; tr.appendChild(idCell);
+    const actions = document.createElement("td");
+    if (isManager()) actions.append(makeButton("Edit", "secondary-btn", () => managerEntryEdit(sub)), makeButton("Delete", "secondary-btn", () => managerEntryDelete(sub)));
+    tr.appendChild(actions); body.appendChild(tr);
   }
   foxPageControls("submissions", body.closest("table"), filtered.length, p6RenderSubmissions);
 }
@@ -3022,7 +3035,9 @@ function p6Setup() {
   $("p6RefreshSubmissions").addEventListener("click", p6LoadSubmissions);
   $("p6SubUser").addEventListener("change", p6RenderSubmissions);
   $("p6SubForm").addEventListener("change", p6RenderSubmissions);
+  $("p6SubId").addEventListener("input", () => { foxPageState.set("submissions", 0); p6RenderSubmissions(); });
   $("p6SubClear").addEventListener("click", () => {
+    $("p6SubId").value = "";
     $("p6SubUser").value = "";
     $("p6SubForm").value = "";
     p6RenderSubmissions();
@@ -3673,3 +3688,72 @@ function foxRoiSetup() {
   $("foxRefresh").addEventListener("click", foxRoiLoad);
 }
 foxRoiSetup();
+
+// Personal sales report: server returns only the signed-in user's permitted totals.
+let mySalesData = [], mySalesRequest = 0;
+function mySalesFiltered() {
+  return mySalesData.filter(x => (!$("mySalesMonth").value || x.sale_month.slice(0,7) === $("mySalesMonth").value) && (!$("mySalesProduct").value || x.product === $("mySalesProduct").value));
+}
+function mySalesRender() {
+  const rows = mySalesFiltered();
+  const totals = rows.reduce((a,x) => [a[0]+Number(x.revenue),a[1]+Number(x.received),a[2]+Number(x.outstanding)], [0,0,0]);
+  $("mySalesMetrics").replaceChildren(...["Sales / Revenue","Payment Received","Outstanding"].map((label,i) => createStatCard(label,foxMoney(totals[i]),"₹")));
+  foxRows("mySalesRows",rows.map(x => [x.sale_month.slice(0,7),x.product,foxMoney(x.revenue),foxMoney(x.received),foxMoney(x.outstanding)]),5,"No matching sales.");
+}
+async function mySalesLoad() {
+  const request = ++mySalesRequest, owner = currentUser?.id;
+  mySalesData = []; mySalesRender(); clearMessage("mySalesMessage");
+  $("mySalesExport").disabled = true;
+  try {
+    const r = await supabase.rpc("fox_my_sales_report");
+    if (request !== mySalesRequest || currentUser?.id !== owner) return;
+    if (r.error) throw r.error;
+    mySalesData = r.data || [];
+    for (const [id,values,label] of [["mySalesMonth",mySalesData.map(x=>x.sale_month.slice(0,7)),"All Months"],["mySalesProduct",mySalesData.map(x=>x.product),"All Products"]]) foxOptions(id,[...new Set(values)].sort().reverse().map(x=>({value:x,label:x})),label);
+    mySalesRender(); $("mySalesExport").disabled = false;
+  } catch(e) { if(request===mySalesRequest) showMessage("mySalesMessage",friendlyError(e)); }
+}
+for (const id of ["mySalesMonth","mySalesProduct"]) $(id).addEventListener("change",()=>{foxPageState.set("mySalesRows",0);mySalesRender();});
+$("mySalesRefresh").addEventListener("click",mySalesLoad);
+$("mySalesExport").addEventListener("click",()=>{
+  const rows = mySalesFiltered();
+  const lines = [["Month","Product","Sales / Revenue","Payment Received","Outstanding"],...rows.map(x=>[x.sale_month.slice(0,7),x.product,x.revenue,x.received,x.outstanding])];
+  const url=URL.createObjectURL(new Blob(["\ufeff",lines.map(r=>r.map(p8CsvCell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}));
+  const a=document.createElement("a");a.href=url;a.download="my-sales-report.csv";a.click();URL.revokeObjectURL(url);
+});
+let managerEditing = null;
+async function managerEntryEdit(sub) {
+  if (!isManager()) return;
+  clearMessage("p6SubmissionsMessage");
+  try {
+    const r=await supabase.from("form_fields").select("id,label,field_type,required,options,sort_order").eq("form_id",sub.form_id).order("sort_order");
+    if(r.error) throw r.error;
+    if(!r.data?.length) throw new Error("No editable form fields found.");
+    managerEditing={sub,fields:r.data};
+    const box=$("managerEntryFields");box.replaceChildren();
+    for(const f of r.data){
+      const wrap=document.createElement("div"), label=document.createElement("label");label.textContent=f.label;wrap.append(label);
+      const input=document.createElement(f.field_type==="select"?"select":f.field_type==="textarea"?"textarea":"input");
+      input.id="manager_field_"+f.id;label.htmlFor=input.id;
+      if(f.field_type==="select"){p6Option(input,"","Select an option");for(const opt of f.options||[])p6Option(input,String(opt),String(opt));if(sub.answers?.[f.id]!=null && ![...input.options].some(o=>o.value===String(sub.answers[f.id])))p6Option(input,String(sub.answers[f.id]),String(sub.answers[f.id]));}
+      else if(input.tagName==="INPUT")input.type=({number:"number",date:"date",checkbox:"checkbox",email:"email",phone:"tel"})[f.field_type]||"text";
+      if(input.type==="number")input.step="any";
+      if(input.type==="checkbox")input.checked=sub.answers?.[f.id]===true||sub.answers?.[f.id]==="true";else input.value=sub.answers?.[f.id]??"";
+      input.required=!!f.required;if(foxIsEmployeeField(f.label)){input.disabled=true;input.required=false;}
+      wrap.append(input);box.append(wrap);
+    }
+    $("managerEntryTitle").textContent="Edit Entry: "+sub.id;$("managerEntryPanel").classList.remove("hidden");$("managerEntryPanel").scrollIntoView({block:"start"});
+  }catch(e){showMessage("p6SubmissionsMessage",friendlyError(e));}
+}
+$("managerEntryCancel").addEventListener("click",()=>{managerEditing=null;$("managerEntryPanel").classList.add("hidden");});
+$("managerEntryForm").addEventListener("submit",async e=>{
+  e.preventDefault();if(!isManager()||!managerEditing)return;
+  const {sub,fields}=managerEditing, answers={...sub.answers};
+  for(const f of fields){if(foxIsEmployeeField(f.label))continue;const input=$("manager_field_"+f.id);answers[f.id]=input.type==="checkbox"?input.checked:input.type==="number"?(input.value===""?null:Number(input.value)):input.value;}
+  $("managerEntrySave").disabled=true;
+  try{const r=await supabase.rpc("fox_manager_update_entry",{p_id:sub.id,p_answers:answers});if(r.error)throw r.error;$("managerEntryCancel").click();await p6LoadSubmissions();showMessage("p6SubmissionsMessage","Entry updated successfully.","success");}catch(err){showMessage("p6SubmissionsMessage",friendlyError(err));}finally{$("managerEntrySave").disabled=false;}
+});
+async function managerEntryDelete(sub){
+  if(!isManager()||!confirm("Permanently delete entry "+sub.id+" and its linked financial data?"))return;
+  try{const r=await supabase.rpc("fox_manager_delete_entry",{p_id:sub.id});if(r.error)throw r.error;if(managerEditing?.sub.id===sub.id)$("managerEntryCancel").click();await p6LoadSubmissions();showMessage("p6SubmissionsMessage","Entry deleted successfully.","success");}catch(e){showMessage("p6SubmissionsMessage",friendlyError(e));}
+}
