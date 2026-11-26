@@ -331,7 +331,7 @@
             <div class="section-heading">
               <div>
                 <h1>Form Submissions</h1>
-                <p class="muted">Review submitted form data.</p>
+                <p class="muted">Review, edit or delete Sales, Product Purchase and Expenses entries. Use the form filter or search by Entry ID.</p>
               </div>
               <button
                 type="button"
@@ -346,7 +346,9 @@
               class="message hidden"
               role="status"
             ></div>
+            <div id="managerEntryPanel" class="info-panel hidden"><h3 id="managerEntryTitle">Edit Entry</h3><form id="managerEntryForm"><div id="managerEntryFields" class="p6-fields"></div><div class="p8-actions"><button type="submit" class="primary-btn" id="managerEntrySave">Save Changes</button><button type="button" class="secondary-btn" id="managerEntryCancel">Cancel</button></div></form></div>
             <div class="p6-submission-filters">
+              <div><label for="p6SubId">Search Submission ID</label><input id="p6SubId" type="search" placeholder="Paste full entry UUID"></div>
               <div><label for="p6SubUser">Filter by User</label><select id="p6SubUser"><option value="">All Users</option></select></div>
               <div><label for="p6SubForm">Filter by Form</label><select id="p6SubForm"><option value="">All Forms</option></select></div>
               <button type="button" class="secondary-btn" id="p6SubClear">Clear Filters</button>
@@ -359,12 +361,19 @@
                     <th>Date</th>
                     <th>Form</th>
                     <th>Employee</th>
-                    <th>Details</th>
+                    <th>Details</th><th>Entry ID</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody id="p6SubmissionsBody"></tbody>
               </table>
             </div>
+          </section>
+          <section id="myReportSection" class="content-section hidden">
+            <div class="section-heading"><div><h1>My Reports &amp; Product ROI</h1><p class="muted">Your own sales and payment report only.</p></div><button id="mySalesRefresh" type="button" class="secondary-btn">Refresh</button></div>
+            <div id="mySalesMessage" class="message hidden" role="status"></div>
+            <div class="p8-panel"><div class="p8-filters"><div><label for="mySalesMonth">Month</label><select id="mySalesMonth"><option value="">All Months</option></select></div><div><label for="mySalesProduct">Product</label><select id="mySalesProduct"><option value="">All Products</option></select></div></div><div class="p8-actions"><button id="mySalesExport" type="button" class="secondary-btn">Download CSV</button></div></div>
+            <div id="mySalesMetrics" class="p8-metrics"></div>
+            <div class="p8-panel"><h2>My Sales Report</h2><div class="table-container"><table><thead><tr><th>Month</th><th>Product</th><th>Sales / Revenue</th><th>Payment Received</th><th>Outstanding</th></tr></thead><tbody id="mySalesRows"></tbody></table></div></div>
           </section>
           <!-- PHASE 8: REPORTS AND ANALYTICS -->
           <section id="reportsSection" class="content-section hidden">
