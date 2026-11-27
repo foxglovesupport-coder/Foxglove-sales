@@ -24,6 +24,7 @@ const sections = [
   "accountSection",
   "auditSection",
   "myReportSection",
+  "ownSubmissionsSection",
 ];
 
 const menuItems = [
@@ -35,15 +36,16 @@ const menuItems = [
   { id: "users", label: "User Management", roles: managerRoles },
   { id: "builder", label: "Form Builder", roles: managerRoles },
   { id: "assign", label: "Form Assignment", roles: managerRoles },
-  { id: "forms", label: "My Forms", roles: ["superadmin", "admin", "user"] },
-  { id: "myReport", label: "My Reports & ROI", roles: ["user"] },
+  { id: "forms", label: "Forms", roles: ["superadmin", "admin", "user"] },
+  { id: "ownSubmissions", label: "Submissions", roles: ["user"] },
+  { id: "myReport", label: "Report", roles: ["user"] },
   { id: "reports", label: "Reports", roles: managerRoles },
   { id: "roi", label: "Product & ROI", roles: managerRoles },
   { id: "submissions", label: "Submissions", roles: managerRoles },
   { id: "audit", label: "Audit Logs", roles: managerRoles },
   {
     id: "account",
-    label: "My Account",
+    label: "Account",
     roles: ["superadmin", "admin", "user"],
   },
 ];
@@ -451,7 +453,7 @@ function renderNavigation() {
     button.className = "nav-item";
     button.type = "button";
     button.dataset.page = item.id;
-    button.textContent = item.label;
+    button.textContent = item.id === "account" && currentProfile.role === "user" ? "Accounts" : item.label;
 
     button.addEventListener("click", () => {
       navigate(item.id);
@@ -482,6 +484,11 @@ async function navigate(page) {
     button.classList.toggle("active", button.dataset.page === page);
   });
 
+  if (page === "ownSubmissions") {
+    $("ownSubmissionsSection").classList.remove("hidden");
+    await ownSubLoad();
+    return;
+  }
   if (page === "myReport") {
     $("myReportSection").classList.remove("hidden");
     await mySalesLoad();
@@ -525,6 +532,7 @@ async function navigate(page) {
     $("formsSection").classList.remove("hidden");
     await p6LoadMyForms();
   } else if (page === "account") {
+    $("accountHeading").textContent = currentProfile.role === "user" ? "Accounts" : "Account";
     $("accountSection").classList.remove("hidden");
   } else {
     const module = futureModules[page];
@@ -3757,3 +3765,22 @@ async function managerEntryDelete(sub){
   if(!isManager()||!confirm("Permanently delete entry "+sub.id+" and its linked financial data?"))return;
   try{const r=await supabase.rpc("fox_manager_delete_entry",{p_id:sub.id});if(r.error)throw r.error;if(managerEditing?.sub.id===sub.id)$("managerEntryCancel").click();await p6LoadSubmissions();showMessage("p6SubmissionsMessage","Entry deleted successfully.","success");}catch(e){showMessage("p6SubmissionsMessage",friendlyError(e));}
 }
+
+// Personal submissions: never use manager queries or actions.
+const ownSubKnown = {
+ 'cd240eb5-81c7-48d0-8295-9d72561918c6':'Sales',
+ '47ca2077-6351-4b9e-ac70-ae7164f859d1':'Product Purchase',
+ 'bb5fc53b-0837-466d-877a-92aa75bc5b78':'Expenses'
+};
+const ownSubLabels = Object.fromEntries([
+ ['855f002e-ff82-40a1-a8e8-39008e685223','Date'],['5a9a65f2-f26d-4d0c-8ba2-432986221264','Invoice Number'],['a8a8c5c0-edeb-49c9-a808-d456c16edd61','Employee Name'],['963bfe2b-4d73-4f91-b9d7-8c1b7c5781d6',"Client's Name"],['7fa0957a-9c7e-4383-b4d8-295d0580e39e','Payment Generate in INR'],['828f4120-8576-41b4-994e-3332c9e00d41','Payment Status'],['75a84a89-f825-4d63-ad17-b5eb7aab38fd','Payment Received in INR'],['b5f4c8d9-5f58-4f9f-9836-b8cbfe08dcb7','Product'],['9d644beb-567e-4375-b016-9b24f365073f','Quantity'],['5cc50927-e89d-4816-b6b2-5d9f67b6071d','Setup Cost'],['03f37bfa-901e-418c-9ef3-b19c2baf7b7d','Category'],['b12b4aa2-5130-487d-9ea7-d0c5ab9b1fef','Type'],['3dcdefcb-db31-4487-9e6b-e47f2fe6794e','Submission Rate in INR'],['d5663e93-b7f4-4530-b6ba-396485bdf6e6','Delivery Rate in INR'],['5d07284b-521b-4ebb-a79e-3e6ac8b840a4','Utility Rate in INR'],['2e306d51-f20c-44fd-b73f-8a226ee9b608','Marketing Rate in INR'],['1b01b3f1-5fd8-4fb5-ac83-a4f2a3824f13','MM Light Rate in INR'],['e3dd2116-aabf-4f5e-b876-6e9d7eedabc3','Description'],['05fc6394-169a-4cbd-811d-bbf2f1664f67','Date'],['5927d193-f700-4b26-b296-f217bb7114d3','Product'],['8e3b416e-37c9-4e15-ac60-f308e4c4dcf6','Category'],['4067d538-e758-4e60-bee0-ce2ac47cae2d','Purchase Rate (INR)'],['1c953305-ba3b-470d-b6f9-e8d00bb3f63c','Expenses Name'],['ec45ba30-08ae-4efa-9273-9027bebab63a','Amount (INR)'],['99cc5c6c-9fe0-4777-8a86-7f7129988425','Month'],['95a3f7e9-1678-4dd9-a91e-b860ca9d8554','Year'],['c7c1e454-adcf-46c3-9830-06b90f2a1a1d','Description']]);
+let ownSubRows=[], ownSubOwner=null, ownSubSeq=0, ownSubNames={}, ownSubFields={};
+function ownSubAllowed(){return currentProfile?.role==='user' && currentUser?.id && ownSubOwner===currentUser.id;}
+function ownSubValue(r,label){const pair=Object.entries(r.answers||{}).find(([k])=>(ownSubFields[k]||ownSubLabels[k]||'').toLowerCase()===label.toLowerCase());return pair?.[1]??'';}
+function ownSubDate(r){return String(ownSubValue(r,'Date')||r.submitted_at||'').slice(0,10);}
+function ownSubMonthValue(r){const m=ownSubValue(r,'Month'), y=ownSubValue(r,'Year');if(m&&y){const n=Number(m)||['january','february','march','april','may','june','july','august','september','october','november','december'].findIndex(x=>x.startsWith(String(m).toLowerCase()))+1;if(n>=1&&n<=12)return `${y}-${String(n).padStart(2,'0')}`;}return ownSubDate(r).slice(0,7);}
+function ownSubFiltered(){if(!ownSubAllowed())return [];const q=$('ownSubSearch').value.trim().toLowerCase(), f=$('ownSubForm').value,m=$('ownSubMonth').value,p=$('ownSubProduct').value;return ownSubRows.filter(r=>r.submitted_by===currentUser.id&&(!q||r.id.toLowerCase().includes(q)||String(ownSubValue(r,'Invoice Number')).toLowerCase().includes(q))&&(!f||r.form_id===f)&&(!m||ownSubMonthValue(r)===m)&&(!p||String(ownSubValue(r,'Product'))===p));}
+function ownSubRender(){const rows=ownSubFiltered(),body=$('ownSubBody');body.replaceChildren();$('ownSubCount').textContent=`${rows.length} matching submissions`;$('ownSubExport').disabled=!rows.length;if(!rows.length)p6EmptyRow(body,5,'No matching submissions.');for(const r of foxPageSlice('ownSub',rows)){const tr=document.createElement('tr');for(const v of [ownSubDate(r),ownSubNames[r.form_id]||ownSubKnown[r.form_id]||'Form '+r.form_id,ownSubValue(r,'Invoice Number')]){const td=document.createElement('td');td.textContent=v;tr.append(td);}const td=document.createElement('td'),d=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('div');summary.textContent='View Answers';pre.className='p6-details';pre.textContent=Object.entries(r.answers||{}).map(([k,v])=>`${ownSubFields[k]||ownSubLabels[k]||k}: ${v??''}`).join('\n');d.append(summary,pre);td.append(d);tr.append(td);const id=document.createElement('td');id.textContent=r.id;tr.append(id);body.append(tr);}foxPageControls('ownSub',body.closest('table'),rows.length,ownSubRender);}
+async function ownSubLoad(){const seq=++ownSubSeq,uid=currentUser?.id;ownSubOwner=null;ownSubRows=[];ownSubRender();clearMessage('ownSubMessage');if(!uid||currentProfile?.role!=='user')return;const rows=[];try{for(let offset=0;;offset+=500){const {data,error}=await supabase.from('form_submissions').select('id,form_id,submitted_by,submitted_at,answers').eq('submitted_by',uid).order('submitted_at',{ascending:false}).order('id',{ascending:false}).range(offset,offset+499);if(error)throw error;rows.push(...(data||[]));if((data||[]).length<500)break;}const ids=[...new Set(rows.map(r=>r.form_id))],names={},fields={};for(const id of ids){const [f,k]=await Promise.all([supabase.from('forms').select('id,title').eq('id',id),supabase.from('form_fields').select('id,label').eq('form_id',id)]);for(const x of f.data||[])names[x.id]=x.title;for(const x of k.data||[])fields[x.id]=x.label;}if(seq!==ownSubSeq||currentUser?.id!==uid||currentProfile?.role!=='user')return;ownSubOwner=uid;ownSubRows=rows.filter(r=>r.submitted_by===uid);ownSubNames=names;ownSubFields=fields;p6SubPopulate('ownSubForm',ids.map(id=>({id,title:names[id]||ownSubKnown[id]||'Form '+id})),'All Forms',x=>x.title);p6SubPopulate('ownSubProduct',[...new Set(ownSubRows.map(r=>String(ownSubValue(r,'Product'))).filter(Boolean))].sort().map(id=>({id})),'All Products',x=>x.id);foxPageState.set('ownSub',0);ownSubRender();}catch(e){if(seq===ownSubSeq)showMessage('ownSubMessage',friendlyError(e));}}
+function ownSubExport(){const rows=ownSubFiltered();if(!rows.length)return;const keys=[...new Set(rows.flatMap(r=>Object.keys(r.answers||{})))];const lines=[['Entry ID','Form','Submitted At',...keys.map(k=>`${ownSubFields[k]||ownSubLabels[k]||'Field'} [${k}]`)].map(p8CsvCell).join(',')];for(const r of rows)lines.push([r.id,ownSubNames[r.form_id]||ownSubKnown[r.form_id]||r.form_id,r.submitted_at,...keys.map(k=>r.answers?.[k]??'')].map(p8CsvCell).join(','));const url=URL.createObjectURL(new Blob(['\ufeff',lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='foxglove-own-submissions.csv';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+$('ownSubRefresh').addEventListener('click',ownSubLoad);$('ownSubExport').addEventListener('click',ownSubExport);for(const id of ['ownSubSearch','ownSubForm','ownSubMonth','ownSubProduct'])$(id).addEventListener(id==='ownSubSearch'?'input':'change',()=>{foxPageState.set('ownSub',0);ownSubRender();});$('ownSubClear').addEventListener('click',()=>{for(const id of ['ownSubSearch','ownSubForm','ownSubMonth','ownSubProduct'])$(id).value='';foxPageState.set('ownSub',0);ownSubRender();});
