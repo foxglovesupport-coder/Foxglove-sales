@@ -234,7 +234,7 @@
           <section id="formsSection" class="content-section hidden">
             <div class="section-heading">
               <div>
-                <h1>My Forms</h1>
+                <h1>Forms</h1>
                 <p class="muted">
                   Fill your assigned forms and review submissions.
                 </p>
@@ -368,8 +368,18 @@
               </table>
             </div>
           </section>
+<section id="ownSubmissionsSection" class="content-section hidden">
+<div class="section-heading"><div><h1>Submissions</h1><p class="muted">View and download your own submitted entries.</p></div><button id="ownSubRefresh" type="button" class="secondary-btn">Refresh</button></div>
+<div id="ownSubMessage" class="message hidden" role="status"></div>
+<div class="p8-panel"><div class="p8-filters">
+<div><label for="ownSubSearch">Invoice / Entry ID</label><input id="ownSubSearch" type="search" placeholder="Search invoice or entry ID"></div>
+<div><label for="ownSubForm">Form</label><select id="ownSubForm"><option value="">All Forms</option></select></div>
+<div><label for="ownSubMonth">Month</label><input id="ownSubMonth" type="month"></div>
+<div><label for="ownSubProduct">Product</label><select id="ownSubProduct"><option value="">All Products</option></select></div></div>
+<div class="p8-actions"><button id="ownSubClear" type="button" class="secondary-btn">Clear Filters</button><button id="ownSubExport" type="button" class="secondary-btn">Download CSV</button></div></div>
+<p id="ownSubCount" class="muted" aria-live="polite"></p><div class="table-container"><table><thead><tr><th>Date</th><th>Form</th><th>Invoice</th><th>Details</th><th>Entry ID</th></tr></thead><tbody id="ownSubBody"></tbody></table></div></section>
           <section id="myReportSection" class="content-section hidden">
-            <div class="section-heading"><div><h1>My Reports &amp; Product ROI</h1><p class="muted">Your own sales and payment report only.</p></div><button id="mySalesRefresh" type="button" class="secondary-btn">Refresh</button></div>
+            <div class="section-heading"><div><h1>Report</h1><p class="muted">Your own sales and payment report only.</p></div><button id="mySalesRefresh" type="button" class="secondary-btn">Refresh</button></div>
             <div id="mySalesMessage" class="message hidden" role="status"></div>
             <div class="p8-panel"><div class="p8-filters"><div><label for="mySalesMonth">Month</label><select id="mySalesMonth"><option value="">All Months</option></select></div><div><label for="mySalesProduct">Product</label><select id="mySalesProduct"><option value="">All Products</option></select></div></div><div class="p8-actions"><button id="mySalesExport" type="button" class="secondary-btn">Download CSV</button></div></div>
             <div id="mySalesMetrics" class="p8-metrics"></div>
@@ -531,7 +541,7 @@
             <div class="fox-panel">
               <h2>Monthly Purchase Rates</h2>
               <p class="muted">
-                Add rates through My Forms → Product Purchase Form.
+                Add rates through Forms → Product Purchase Form.
               </p>
               <div class="table-container">
                 <table>
@@ -551,7 +561,7 @@
             <div class="fox-panel">
               <h2>Business Expenses</h2>
               <p class="muted">
-                Add expenses through My Forms → Expenses Form.
+                Add expenses through Forms → Expenses Form.
               </p>
               <div class="table-container">
                 <table>
@@ -836,7 +846,7 @@
 
           <!-- MY ACCOUNT -->
           <section id="accountSection" class="content-section hidden">
-            <h1>My Account</h1>
+            <h1 id="accountHeading">Account</h1>
 
             <div class="info-panel">
               <p><strong>Name:</strong> <span id="profileName"></span></p>
